@@ -2,6 +2,8 @@
 
 A comprehensive Streamlit dashboard for monitoring and analyzing costs associated with Cortex Agents and Snowflake Intelligence in your Snowflake account.
 
+![Demo](assets/1.gif)
+
 ## 📊 What This Dashboard Does
 
 This dashboard provides comprehensive cost monitoring for all Cortex Agents in your Snowflake account, tracking Cortex Analyst text-to-SQL generation costs, warehouse compute costs for AI-generated query execution, and Cortex Search costs for knowledge base services across multiple time periods (1d, 3d, 7d, 30d). The dashboard shows total consumption with detailed breakdowns by warehouse usage, agent configurations, search service mapping, usage trends over time, and raw request data, while automatically detecting your Snowflake edition to provide both credit consumption and estimated dollar cost views.
