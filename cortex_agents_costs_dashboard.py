@@ -251,11 +251,29 @@ def get_agent_details(agent_name):
                                     })
                                 
                                 elif tool_type == 'cortex_search':
-                                    # Extract Cortex Search service info
-                                    search_service = tool_spec.get('search_service', 'Unknown')
+                                    # Extract Cortex Search service info from tool_resources
+                                    search_service = 'Unknown'
+                                    
+                                    if 'tool_resources' in spec and tool_name in spec['tool_resources']:
+                                        tool_resource = spec['tool_resources'][tool_name]
+                                        # The actual search service name is in the 'name' field
+                                        search_service = tool_resource.get('name', 'Unknown')
+                                        
+                                        # If we have the full qualified name, extract just the service name part
+                                        if search_service != 'Unknown' and '.' in search_service:
+                                            # Extract just the service name (last part after the last dot)
+                                            service_name_parts = search_service.split('.')
+                                            simple_service_name = service_name_parts[-1]
+                                        else:
+                                            simple_service_name = search_service
+                                    else:
+                                        search_service = tool_name
+                                        simple_service_name = tool_name
+                                    
                                     tools_info['cortex_search_services'].append({
                                         'name': tool_name,
-                                        'search_service': search_service
+                                        'search_service': simple_service_name,
+                                        'full_service_name': search_service
                                     })
                     
                     return tools_info
@@ -321,7 +339,6 @@ with st.sidebar.expander("💡 Cost Estimation Details", expanded=False):
 
 # Main content area
 st.subheader("💰 Snowflake Intelligence Cost Analysis")
-st.info("📋 **Note:** This dashboard now covers Cortex Analyst, Warehouse, and Cortex Search costs!")
 
 # Expandable info section
 with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=False):
@@ -583,7 +600,11 @@ with tab_agents:
                 if tools_info['cortex_search_services']:
                     st.markdown("**🔍 Cortex Search Services:**")
                     for i, service in enumerate(tools_info['cortex_search_services'], 1):
+                        full_name = service.get('full_service_name', service['search_service'])
                         st.write(f"  {i}. **{service['name']}** - Service: `{service['search_service']}`")
+                        if full_name != service['search_service']:
+                            st.write(f"     Full path: `{full_name}`")
+                    
                 
                 if not tools_info['cortex_analyst_tools'] and not tools_info['cortex_search_services']:
                     st.info("No Cortex tools configured for this agent.")

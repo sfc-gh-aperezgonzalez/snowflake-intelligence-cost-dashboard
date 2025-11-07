@@ -58,7 +58,7 @@ snow streamlit deploy --file cortex_agents_costs_dashboard.py
 ## ⚠️ Current Limitations
 
 **This first version does not include:**
-- **Individual agent cost isolation** - Shows total costs across all Cortex Agents (limitation of Snowflake's current tracking)
+- **Individual agent cost isolation**
 - **Historical data beyond 30 days**
 - **Real-time data** - Subject to ACCOUNT_USAGE view latency (up to 3 hours)
 
