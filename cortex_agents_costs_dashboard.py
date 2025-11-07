@@ -10,7 +10,7 @@ from snowflake.snowpark.context import get_active_session
 # Set page configuration
 st.set_page_config(
     page_title="Snowflake Intelligence Cost Dashboard",
-    page_icon="🤖",
+    page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -41,7 +41,7 @@ st.markdown("""
 # Header
 header_html = """
 <div class="main-header">
-    <h1 class="main-title">🤖 SNOWFLAKE INTELLIGENCE COST DASHBOARD</h1>
+    <h1 class="main-title">💰 SNOWFLAKE INTELLIGENCE COST DASHBOARD</h1>
     <div style="font-size: 1.1rem; opacity: 0.9;">
         Monitor and analyze costs for all Cortex Agents used in your Snowflake account
     </div>
@@ -594,17 +594,14 @@ with tab7:
         render_period_tab(7, "7 Days", display_mode, cost_per_credit)
 
 with tab30:
-    st.markdown("### ⚠️ 30-Day Analysis - Performance Warning")
-    st.warning("🐌 **Performance Notice:** The 30-day analysis processes large amounts of data and may take 2-3 minutes to complete.")
-    
+    # Show performance warning before loading
     if not st.session_state['loaded_periods']['30d']:
-        st.info("👆 Click the button below to load 30-day cost analysis when you are ready.")
-        if st.button("🚀 Load 30-Day Analysis", type="primary", help="Click to confirm and start the 30-day analysis"):
-            st.session_state['loaded_periods']['30d'] = True
+        st.warning("🐌 **Performance Notice:** Loading 30-day analysis... This may take 2-3 minutes due to large data volumes.")
     
-    if st.session_state['loaded_periods']['30d']:
-        with st.spinner('⏳ Aggregating 30-day history... this can take a couple of minutes.'):
-            render_period_tab(30, "30 Days", display_mode, cost_per_credit)
+    # Auto-load when tab is activated
+    with st.spinner('⏳ Aggregating 30-day history... please wait...'):
+        render_period_tab(30, "30 Days", display_mode, cost_per_credit)
+        st.session_state['loaded_periods']['30d'] = True
 
 # All Agents Tab
 with tab_agents:
