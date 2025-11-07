@@ -1,0 +1,11 @@
+# AI Coding Rules
+ai_coding_rules/
+
+rules/
+
+# Generated rule files (IDE-specific outputs)
+.cursor/
+.github/instructions/
+
+tdd/
+streamlit_references/
