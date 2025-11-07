@@ -189,6 +189,111 @@ def get_cortex_analyst_requests(days):
         st.error(f"Could not fetch Cortex Analyst requests data: {str(e)}")
         return pd.DataFrame()
 
+@st.cache_data
+def get_agents():
+    """Get available Cortex Agents"""
+    try:
+        agents_data = session.sql("""
+            SHOW AGENTS IN SCHEMA SNOWFLAKE_INTELLIGENCE.AGENTS
+        """).to_pandas()
+        return agents_data
+    except Exception as e:
+        st.error(f"Error fetching agents: {str(e)}")
+        return pd.DataFrame()
+
+@st.cache_data
+def get_agent_details(agent_name):
+    """Get detailed agent information including tools"""
+    try:
+        describe_query = f"DESCRIBE AGENT SNOWFLAKE_INTELLIGENCE.AGENTS.{agent_name}"
+        agent_details = session.sql(describe_query).to_pandas()
+        
+        if not agent_details.empty:
+            # Parse the agent_spec JSON to find tools
+            agent_spec_col = list(agent_details.columns)[6]  # agent_spec is typically at index 6
+            agent_spec_json = agent_details.iloc[0][agent_spec_col]
+            
+            if agent_spec_json:
+                try:
+                    spec = json.loads(agent_spec_json)
+                    
+                    # Extract all tools info
+                    tools_info = {
+                        'cortex_analyst_tools': [],
+                        'cortex_search_services': []
+                    }
+                    
+                    if 'tools' in spec:
+                        for tool in spec['tools']:
+                            if 'tool_spec' in tool:
+                                tool_spec = tool['tool_spec']
+                                tool_type = tool_spec.get('type')
+                                tool_name = tool_spec.get('name', 'Unknown')
+                                
+                                if tool_type == 'cortex_analyst_text_to_sql':
+                                    # Get warehouse and semantic view
+                                    warehouse = 'Not specified'
+                                    semantic_view = 'Not specified'
+                                    
+                                    if 'tool_resources' in spec and tool_name in spec['tool_resources']:
+                                        tool_resource = spec['tool_resources'][tool_name]
+                                        semantic_view = tool_resource.get('semantic_view', 'Not specified')
+                                        
+                                        if 'execution_environment' in tool_resource:
+                                            exec_env = tool_resource['execution_environment']
+                                            if exec_env.get('type') == 'warehouse':
+                                                warehouse = exec_env.get('warehouse', 'Not specified')
+                                    
+                                    tools_info['cortex_analyst_tools'].append({
+                                        'name': tool_name,
+                                        'warehouse': warehouse,
+                                        'semantic_view': semantic_view
+                                    })
+                                
+                                elif tool_type == 'cortex_search':
+                                    # Extract Cortex Search service info
+                                    search_service = tool_spec.get('search_service', 'Unknown')
+                                    tools_info['cortex_search_services'].append({
+                                        'name': tool_name,
+                                        'search_service': search_service
+                                    })
+                    
+                    return tools_info
+                    
+                except json.JSONDecodeError:
+                    return {'cortex_analyst_tools': [], 'cortex_search_services': []}
+        
+        return {'cortex_analyst_tools': [], 'cortex_search_services': []}
+    except Exception as e:
+        st.error(f"Error getting agent details: {str(e)}")
+        return {'cortex_analyst_tools': [], 'cortex_search_services': []}
+
+@st.cache_data
+def get_cortex_search_usage(days):
+    """Get Cortex Search usage history"""
+    search_query = f"""
+    SELECT
+      USAGE_DATE,
+      DATABASE_NAME,
+      SCHEMA_NAME,
+      SERVICE_NAME,
+      SERVICE_ID,
+      CONSUMPTION_TYPE,
+      CREDITS,
+      MODEL_NAME,
+      TOKENS
+    FROM SNOWFLAKE.ACCOUNT_USAGE.CORTEX_SEARCH_DAILY_USAGE_HISTORY
+    WHERE USAGE_DATE >= DATEADD(DAY, -{days}, CURRENT_DATE)
+    ORDER BY USAGE_DATE DESC, CREDITS DESC
+    """
+    
+    try:
+        result = session.sql(search_query).to_pandas()
+        return result
+    except Exception as e:
+        st.error(f"Could not fetch Cortex Search usage data: {str(e)}")
+        return pd.DataFrame()
+
 # Initialize session state and configuration
 if 'initialized' not in st.session_state:
     st.session_state.initialized = True
@@ -216,6 +321,7 @@ with st.sidebar.expander("💡 Cost Estimation Details", expanded=False):
 
 # Main content area
 st.subheader("💰 Snowflake Intelligence Cost Analysis")
+st.info("📋 **Note:** This dashboard now covers Cortex Analyst, Warehouse, and Cortex Search costs!")
 
 # Expandable info section
 with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=False):
@@ -230,17 +336,16 @@ with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=
     
     ---
     
-    **📊 This dashboard covers components 1 & 3:**
+    **📊 This dashboard covers all 3 components:**
     - **Cortex Analyst Usage**: Token consumption for text-to-SQL generation
+    - **Cortex Search Costs**: Consumption for knowledge base services used by agents
     - **Warehouse Costs**: Compute costs for executing generated queries
-    
-    **⚠️ Note:** Cortex Search costs are not included in this dashboard and require separate monitoring.
     """)
 
 # Create tabs for different time periods and data views
-tab7, tab1, tab3, tab30, tab5, tab6 = st.tabs([
-    "📅 7 Days", "📅 1 Day", "📅 3 Days", "📅 30 Days", 
-    "📊 Cortex Analyst Usage", "📋 Raw Requests Data"
+tab7, tab1, tab3, tab30, tab_agents, tab_search, tab5, tab6 = st.tabs([
+    "📅 7 Days", "📅 1 Day", "📅 3 Days", "📅 30 Days",
+    "🤖 All Agents", "🔍 Cortex Search", "📊 Cortex Analyst Usage", "📋 Raw Requests Data"
 ])
 
 # Function to render period tab content
@@ -427,6 +532,205 @@ with tab3:
 
 with tab30:
     render_period_tab(30, "30 Days", display_mode, cost_per_credit)
+
+# All Agents Tab
+with tab_agents:
+    st.markdown("### 🤖 All Cortex Agents in Account")
+    
+    agents_data = get_agents()
+    
+    if not agents_data.empty:
+        st.write(f"**Total Agents Found:** {len(agents_data)}")
+        
+        # Get the actual column names
+        columns = list(agents_data.columns)
+        name_col = columns[1] if len(columns) > 1 else columns[0]
+        
+        # Agent details expansion
+        for _, agent_row in agents_data.iterrows():
+            agent_name = agent_row[name_col]
+            
+            with st.expander(f"🤖 Agent: {agent_name}", expanded=False):
+                # Basic agent info
+                if len(columns) > 5:
+                    comment_col = columns[5]  # 'comment' is at index 5
+                    created_col = columns[0]  # 'created_on' is at index 0
+                    owner_col = columns[4]    # 'owner' is at index 4
+                    
+                    comment = agent_row[comment_col]
+                    if pd.isna(comment) or not str(comment).strip():
+                        comment = 'No description available'
+                    st.write(f"**Description:** {comment}")
+                    
+                    # Convert timestamp to readable date
+                    try:
+                        created_timestamp = float(agent_row[created_col])
+                        created_date = datetime.datetime.fromtimestamp(created_timestamp)
+                        st.write(f"**Created:** {created_date.strftime('%Y-%m-%d %H:%M:%S')}")
+                    except:
+                        st.write(f"**Created:** {agent_row[created_col]}")
+                    
+                    st.write(f"**Owner:** {agent_row[owner_col]}")
+                
+                # Get detailed tool configuration
+                tools_info = get_agent_details(agent_name)
+                
+                if tools_info['cortex_analyst_tools']:
+                    st.markdown("**🔍 Cortex Analyst Tools:**")
+                    for i, tool in enumerate(tools_info['cortex_analyst_tools'], 1):
+                        st.write(f"  {i}. **{tool['name']}** - Warehouse: `{tool['warehouse']}`, View: `{tool['semantic_view']}`")
+                
+                if tools_info['cortex_search_services']:
+                    st.markdown("**🔍 Cortex Search Services:**")
+                    for i, service in enumerate(tools_info['cortex_search_services'], 1):
+                        st.write(f"  {i}. **{service['name']}** - Service: `{service['search_service']}`")
+                
+                if not tools_info['cortex_analyst_tools'] and not tools_info['cortex_search_services']:
+                    st.info("No Cortex tools configured for this agent.")
+        
+        # Show all agents table
+        st.markdown("#### 📋 All Agents Summary")
+        st.dataframe(agents_data, use_container_width=True, hide_index=True)
+        
+    else:
+        st.warning("No Cortex Agents found in your account.")
+        st.info("Ensure you have agents deployed in the SNOWFLAKE_INTELLIGENCE.AGENTS schema.")
+
+# Cortex Search Costs Tab
+with tab_search:
+    st.markdown("### 🔍 Cortex Search Cost Analysis")
+    
+    period_days = st.selectbox("Select Time Period:", [7, 1, 3, 30], index=0, key="search_period")
+    
+    # Get search usage data
+    search_usage_data = get_cortex_search_usage(period_days)
+    agents_data = get_agents()
+    
+    if not search_usage_data.empty:
+        # Get all agent search services for matching
+        all_agent_search_services = set()
+        agent_service_mapping = {}
+        
+        if not agents_data.empty:
+            columns = list(agents_data.columns)
+            name_col = columns[1] if len(columns) > 1 else columns[0]
+            
+            for _, agent_row in agents_data.iterrows():
+                agent_name = agent_row[name_col]
+                tools_info = get_agent_details(agent_name)
+                
+                for service in tools_info['cortex_search_services']:
+                    service_name = service['search_service']
+                    all_agent_search_services.add(service_name)
+                    if service_name not in agent_service_mapping:
+                        agent_service_mapping[service_name] = []
+                    agent_service_mapping[service_name].append(agent_name)
+        
+        # Filter search usage to only show services used by agents
+        agent_search_usage = search_usage_data[
+            search_usage_data['SERVICE_NAME'].isin(all_agent_search_services)
+        ] if all_agent_search_services else pd.DataFrame()
+        
+        # Calculate totals
+        total_search_credits = agent_search_usage['CREDITS'].sum() if not agent_search_usage.empty else 0
+        total_all_search_credits = search_usage_data['CREDITS'].sum()
+        
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            value = total_search_credits
+            display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
+            st.metric(
+                f"💰 Agent Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
+                display_value,
+                help="Cortex Search costs for services used by Cortex Agents"
+            )
+        
+        with col2:
+            value = total_all_search_credits
+            display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
+            st.metric(
+                f"🔍 Total Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
+                display_value,
+                help="Total Cortex Search costs (all services)"
+            )
+        
+        with col3:
+            unique_services = len(all_agent_search_services)
+            st.metric(
+                "🤖 Agent Services",
+                str(unique_services),
+                help="Number of Cortex Search services used by agents"
+            )
+        
+        with col4:
+            total_services = search_usage_data['SERVICE_NAME'].nunique()
+            st.metric(
+                "📊 Total Services",
+                str(total_services),
+                help="Total number of Cortex Search services in account"
+            )
+        
+        # Show agent-related search services
+        if not agent_search_usage.empty:
+            st.markdown("#### 🤖 Search Services Used by Agents")
+            
+            # Group by service and show which agents use it
+            service_breakdown = []
+            for service_name in agent_search_usage['SERVICE_NAME'].unique():
+                service_data = agent_search_usage[agent_search_usage['SERVICE_NAME'] == service_name]
+                agents_using = agent_service_mapping.get(service_name, [])
+                
+                service_breakdown.append({
+                    'SERVICE_NAME': service_name,
+                    'AGENTS_USING': ', '.join(agents_using),
+                    'TOTAL_CREDITS': service_data['CREDITS'].sum(),
+                    'USAGE_DAYS': service_data['USAGE_DATE'].nunique()
+                })
+            
+            breakdown_df = pd.DataFrame(service_breakdown)
+            breakdown_df = breakdown_df.sort_values('TOTAL_CREDITS', ascending=False)
+            
+            # Format for display
+            if display_mode == "Credits":
+                breakdown_df['TOTAL_CREDITS'] = breakdown_df['TOTAL_CREDITS'].apply(format_credits)
+            else:
+                breakdown_df['TOTAL_COST'] = breakdown_df['TOTAL_CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
+                breakdown_df = breakdown_df.drop('TOTAL_CREDITS', axis=1)
+            
+            st.dataframe(breakdown_df, use_container_width=True, hide_index=True)
+            
+            # Show raw data for agent services
+            st.markdown("#### 📋 Detailed Usage Data (Agent Services Only)")
+            display_search = agent_search_usage.copy()
+            if display_mode == "Cost":
+                display_search['ESTIMATED_COST'] = display_search['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
+            else:
+                display_search['CREDITS'] = display_search['CREDITS'].apply(format_credits)
+            
+            st.dataframe(display_search, use_container_width=True, hide_index=True)
+        
+        else:
+            st.info("No Cortex Search services found that are used by your Cortex Agents.")
+            st.markdown("#### 📊 All Search Services in Account")
+            st.write(f"Total services found: {len(search_usage_data)}")
+            
+            # Show top search services
+            if not search_usage_data.empty:
+                top_services = search_usage_data.groupby('SERVICE_NAME')['CREDITS'].sum().reset_index()
+                top_services = top_services.sort_values('CREDITS', ascending=False).head(10)
+                
+                if display_mode == "Credits":
+                    top_services['CREDITS'] = top_services['CREDITS'].apply(format_credits)
+                else:
+                    top_services['ESTIMATED_COST'] = top_services['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
+                    top_services = top_services.drop('CREDITS', axis=1)
+                
+                st.dataframe(top_services, use_container_width=True, hide_index=True)
+    
+    else:
+        st.info(f"No Cortex Search usage data found for the last {period_days} days.")
 
 # Cortex Analyst Usage Tab
 with tab5:
