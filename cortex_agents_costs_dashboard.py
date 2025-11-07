@@ -597,14 +597,14 @@ with tab30:
     st.markdown("### ⚠️ 30-Day Analysis - Performance Warning")
     st.warning("🐌 **Performance Notice:** The 30-day analysis processes large amounts of data and may take 2-3 minutes to complete.")
     
-    if st.session_state['loaded_periods']['30d']:
-        with st.spinner('⏳ Aggregating 30-day history... this can take a couple of minutes.'):
-            render_period_tab(30, "30 Days", display_mode, cost_per_credit)
-    else:
+    if not st.session_state['loaded_periods']['30d']:
         st.info("👆 Click the button below to load 30-day cost analysis when you are ready.")
         if st.button("🚀 Load 30-Day Analysis", type="primary", help="Click to confirm and start the 30-day analysis"):
             st.session_state['loaded_periods']['30d'] = True
-            st.experimental_rerun()
+    
+    if st.session_state['loaded_periods']['30d']:
+        with st.spinner('⏳ Aggregating 30-day history... this can take a couple of minutes.'):
+            render_period_tab(30, "30 Days", display_mode, cost_per_credit)
 
 # All Agents Tab
 with tab_agents:
