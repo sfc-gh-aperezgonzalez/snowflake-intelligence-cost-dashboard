@@ -375,9 +375,6 @@ cost_per_credit = get_cost_per_credit(edition)
 # Track which period tabs have been loaded so we only run heavy queries when needed
 if 'loaded_periods' not in st.session_state:
     st.session_state['loaded_periods'] = {
-        '1d': True,   # default tab loads automatically
-        '3d': False,
-        '7d': False,
         '30d': False
     }
 
@@ -589,24 +586,12 @@ with tab1:
         render_period_tab(1, "1 Day", display_mode, cost_per_credit)
 
 with tab3:
-    if st.session_state['loaded_periods']['3d']:
-        with st.spinner('✨ Crunching 3-day trends...'):
-            render_period_tab(3, "3 Days", display_mode, cost_per_credit)
-    else:
-        st.info("3-day analysis loads on demand to keep the dashboard fast.")
-        if st.button("Load 3-Day Analysis", key="load_3d_analysis"):
-            st.session_state['loaded_periods']['3d'] = True
-            st.experimental_rerun()
+    with st.spinner('✨ Crunching 3-day trends...'):
+        render_period_tab(3, "3 Days", display_mode, cost_per_credit)
 
 with tab7:
-    if st.session_state['loaded_periods']['7d']:
-        with st.spinner('✨ Exploring 7-day patterns...'):
-            render_period_tab(7, "7 Days", display_mode, cost_per_credit)
-    else:
-        st.info("7-day analysis is available on demand. Load it when you need broader context.")
-        if st.button("Load 7-Day Analysis", key="load_7d_analysis"):
-            st.session_state['loaded_periods']['7d'] = True
-            st.experimental_rerun()
+    with st.spinner('✨ Exploring 7-day patterns...'):
+        render_period_tab(7, "7 Days", display_mode, cost_per_credit)
 
 with tab30:
     st.markdown("### ⚠️ 30-Day Analysis - Performance Warning")
