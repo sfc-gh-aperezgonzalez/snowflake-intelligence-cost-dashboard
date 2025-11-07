@@ -372,11 +372,28 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
     # Get data
     warehouse_data = get_warehouse_costs_breakdown(days)
     cortex_usage_data = get_cortex_analyst_usage(days)
+    search_usage_data = get_cortex_search_usage(days)
+    agents_data = get_agents()
+    
+    # Get agent search services for matching
+    all_agent_search_services = set()
+    if not agents_data.empty:
+        columns = list(agents_data.columns)
+        name_col = columns[1] if len(columns) > 1 else columns[0]
+        
+        for _, agent_row in agents_data.iterrows():
+            agent_name = agent_row[name_col]
+            tools_info = get_agent_details(agent_name)
+            
+            for service in tools_info['cortex_search_services']:
+                service_name = service['search_service']
+                all_agent_search_services.add(service_name)
     
     # Calculate totals
     warehouse_cortex_credits = 0
     warehouse_other_credits = 0
     cortex_analyst_credits = cortex_usage_data['CREDITS'].sum() if not cortex_usage_data.empty else 0
+    cortex_search_credits = 0
     
     if not warehouse_data.empty:
         cortex_mask = warehouse_data['QUERY_TYPE'] == 'Cortex Analyst'
@@ -384,18 +401,26 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
         warehouse_cortex_credits = warehouse_data[cortex_mask]['TOTAL_CREDITS'].sum()
         warehouse_other_credits = warehouse_data[other_mask]['TOTAL_CREDITS'].sum()
     
-    total_cortex_credits = warehouse_cortex_credits + cortex_analyst_credits
+    # Calculate Cortex Search credits for agent services only
+    if not search_usage_data.empty and all_agent_search_services:
+        agent_search_data = search_usage_data[
+            search_usage_data['SERVICE_NAME'].isin(all_agent_search_services)
+        ]
+        cortex_search_credits = agent_search_data['CREDITS'].sum()
+    
+    # Total Snowflake Intelligence cost = all three components
+    total_snowflake_intelligence_credits = warehouse_cortex_credits + cortex_analyst_credits + cortex_search_credits
     
     # Display metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        value = total_cortex_credits
+        value = total_snowflake_intelligence_credits
         display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
         st.metric(
             f"💰 Total Snowflake Intelligence {'Credits' if display_mode == 'Credits' else 'Cost'}",
             display_value,
-            help="Total credits/cost for SQL queries + Cortex Analyst usage"
+            help="Total credits/cost for all Snowflake Intelligence services: Cortex Analyst + Warehouse + Cortex Search"
         )
     
     with col2:
@@ -417,11 +442,12 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
         )
     
     with col4:
-        cortex_queries = warehouse_data[warehouse_data['QUERY_TYPE'] == 'Cortex Analyst']['QUERY_COUNT'].sum() if not warehouse_data.empty else 0
+        value = cortex_search_credits
+        display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
         st.metric(
-            "🔍 Cortex Analyst Queries",
-            f"{cortex_queries:,}",
-            help="Number of queries executed by Cortex Analyst"
+            f"🔍 Cortex Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
+            display_value,
+            help="Credits/cost for search services used by Cortex Agents"
         )
     
     # Warehouse breakdown chart and table - only show warehouses with Cortex Analyst activity
@@ -523,6 +549,26 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
             st.info(f"💡 No Cortex Analyst activity found for the last {period_name}.")
     else:
         st.info(f"💡 No warehouse activity found for the last {period_name}.")
+    
+    # Cortex Search details if any found
+    if cortex_search_credits > 0:
+        st.markdown("#### 🔍 Cortex Search Services (Used by Agents)")
+        agent_search_data = search_usage_data[
+            search_usage_data['SERVICE_NAME'].isin(all_agent_search_services)
+        ]
+        
+        if not agent_search_data.empty:
+            # Show services used by agents
+            service_summary = agent_search_data.groupby('SERVICE_NAME')['CREDITS'].sum().reset_index()
+            service_summary = service_summary.sort_values('CREDITS', ascending=False)
+            
+            if display_mode == "Credits":
+                service_summary['CREDITS'] = service_summary['CREDITS'].apply(format_credits)
+            else:
+                service_summary['ESTIMATED_COST'] = service_summary['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
+                service_summary = service_summary.drop('CREDITS', axis=1)
+            
+            st.dataframe(service_summary, use_container_width=True, hide_index=True)
     
     # Cortex Analyst usage summary
     if not cortex_usage_data.empty:
@@ -733,22 +779,31 @@ with tab_search:
             st.dataframe(display_search, use_container_width=True, hide_index=True)
         
         else:
-            st.info("No Cortex Search services found that are used by your Cortex Agents.")
-            st.markdown("#### 📊 All Search Services in Account")
-            st.write(f"Total services found: {len(search_usage_data)}")
-            
-            # Show top search services
-            if not search_usage_data.empty:
-                top_services = search_usage_data.groupby('SERVICE_NAME')['CREDITS'].sum().reset_index()
-                top_services = top_services.sort_values('CREDITS', ascending=False).head(10)
+            # Debug: Show what services we're looking for vs what's available
+            if all_agent_search_services:
+                st.warning("⚠️ Found agent search services but no matching usage data.")
+                st.markdown("**🔍 Debugging Service Matching:**")
                 
-                if display_mode == "Credits":
-                    top_services['CREDITS'] = top_services['CREDITS'].apply(format_credits)
-                else:
-                    top_services['ESTIMATED_COST'] = top_services['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
-                    top_services = top_services.drop('CREDITS', axis=1)
+                col_debug1, col_debug2 = st.columns(2)
                 
-                st.dataframe(top_services, use_container_width=True, hide_index=True)
+                with col_debug1:
+                    st.markdown("**Services from Agents:**")
+                    for service in sorted(all_agent_search_services):
+                        st.write(f"- `{service}`")
+                
+                with col_debug2:
+                    st.markdown("**Available in Usage History:**")
+                    if not search_usage_data.empty:
+                        available_services = sorted(search_usage_data['SERVICE_NAME'].unique())
+                        for service in available_services[:10]:  # Show first 10
+                            match_status = "✅" if service in all_agent_search_services else "❌"
+                            st.write(f"{match_status} `{service}`")
+                        if len(available_services) > 10:
+                            st.write(f"... and {len(available_services)-10} more")
+                    else:
+                        st.write("No usage data available")
+            else:
+                st.info("No Cortex Agents found with Cortex Search services configured.")
     
     else:
         st.info(f"No Cortex Search usage data found for the last {period_days} days.")
@@ -873,7 +928,7 @@ with tab6:
 st.markdown("---")
 st.markdown(f"""
 <div style="text-align: center; color: #666; font-size: 0.9rem;">
-    <p>💡 <strong>Tip:</strong> Costs include warehouse execution (queries with 'Generated by Cortex Analyst') and Cortex Analyst text-to-SQL generation.</p>
+    <p>💡 <strong>Tip:</strong> Costs include Cortex Analyst text-to-SQL generation, warehouse compute execution, and Cortex Search services used by agents.</p>
     <p>📊 Cost estimates based on {edition} edition (${cost_per_credit:.2f}/credit). Actual costs may vary.</p>
     <p>🕒 Data is sourced from ACCOUNT_USAGE views with up to 3-hour latency.</p>
 </div>
