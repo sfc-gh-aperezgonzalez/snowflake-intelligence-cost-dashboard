@@ -98,6 +98,62 @@ def format_credits(credits):
     else:
         return f"{credits:.2f}"
 
+def create_metric(label, value, cost_per_credit, display_mode, help_text=""):
+    """Helper function to create metrics with credit/cost toggle"""
+    display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
+    metric_label = f"{label} {'Credits' if display_mode == 'Credits' else 'Cost'}"
+    return st.metric(metric_label, display_value, help=help_text)
+
+def format_dataframe_for_display(df, credit_cols, display_mode, cost_per_credit):
+    """Helper function to format dataframes based on display mode"""
+    display_df = df.copy()
+    
+    if display_mode == "Credits":
+        for col in credit_cols:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(format_credits)
+    else:
+        for col in credit_cols:
+            if col in display_df.columns:
+                cost_col = col.replace('CREDITS', 'COST').replace('_CREDITS', '_COST')
+                display_df[cost_col] = display_df[col].apply(lambda x: format_cost(x, cost_per_credit))
+                display_df = display_df.drop(col, axis=1)
+    
+    return display_df
+
+def get_agent_search_services():
+    """Extract all Cortex Search services used by agents"""
+    agents_data = get_agents()
+    all_agent_search_services = set()
+    agent_service_mapping = {}
+    
+    if not agents_data.empty:
+        columns = list(agents_data.columns)
+        name_col = columns[1] if len(columns) > 1 else columns[0]
+        
+        for _, agent_row in agents_data.iterrows():
+            agent_name = agent_row[name_col]
+            tools_info = get_agent_details(agent_name)
+            
+            for service in tools_info['cortex_search_services']:
+                service_name = service['search_service']
+                all_agent_search_services.add(service_name)
+                if service_name not in agent_service_mapping:
+                    agent_service_mapping[service_name] = []
+                agent_service_mapping[service_name].append(agent_name)
+    
+    return all_agent_search_services, agent_service_mapping
+
+def apply_chart_styling(fig, title, x_label, y_label, display_mode):
+    """Apply consistent styling to charts"""
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis_title=y_label if display_mode == "Credits" else y_label.replace("Credits", "Cost ($)"),
+        font_family="Arial"
+    )
+    return fig
+
 @st.cache_data
 def get_warehouse_costs_breakdown(days):
     """Get warehouse costs breakdown for cortex vs non-cortex queries - performance optimized"""
@@ -312,10 +368,6 @@ def get_cortex_search_usage(days):
         st.error(f"Could not fetch Cortex Search usage data: {str(e)}")
         return pd.DataFrame()
 
-# Initialize session state and configuration
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = True
-
 # Get Snowflake edition for cost estimation
 edition = get_snowflake_edition()
 cost_per_credit = get_cost_per_credit(edition)
@@ -373,21 +425,9 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
     warehouse_data = get_warehouse_costs_breakdown(days)
     cortex_usage_data = get_cortex_analyst_usage(days)
     search_usage_data = get_cortex_search_usage(days)
-    agents_data = get_agents()
     
     # Get agent search services for matching
-    all_agent_search_services = set()
-    if not agents_data.empty:
-        columns = list(agents_data.columns)
-        name_col = columns[1] if len(columns) > 1 else columns[0]
-        
-        for _, agent_row in agents_data.iterrows():
-            agent_name = agent_row[name_col]
-            tools_info = get_agent_details(agent_name)
-            
-            for service in tools_info['cortex_search_services']:
-                service_name = service['search_service']
-                all_agent_search_services.add(service_name)
+    all_agent_search_services, _ = get_agent_search_services()
     
     # Calculate totals
     warehouse_cortex_credits = 0
@@ -415,40 +455,20 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        value = total_snowflake_intelligence_credits
-        display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-        st.metric(
-            f"💰 Total Snowflake Intelligence {'Credits' if display_mode == 'Credits' else 'Cost'}",
-            display_value,
-            help="Total credits/cost for all Snowflake Intelligence services: Cortex Analyst + Warehouse + Cortex Search"
-        )
+        create_metric("💰 Total Snowflake Intelligence", total_snowflake_intelligence_credits, cost_per_credit, display_mode, 
+                     "Total credits/cost for all Snowflake Intelligence services: Cortex Analyst + Warehouse + Cortex Search")
     
     with col2:
-        value = cortex_analyst_credits
-        display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-        st.metric(
-            f"🤖 Cortex Analyst {'Credits' if display_mode == 'Credits' else 'Cost'}",
-            display_value,
-            help="Credits/cost for text-to-SQL generation"
-        )
+        create_metric("🤖 Cortex Analyst", cortex_analyst_credits, cost_per_credit, display_mode,
+                     "Credits/cost for text-to-SQL generation")
     
     with col3:
-        value = warehouse_cortex_credits
-        display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-        st.metric(
-            f"🏭 Warehouse {'Credits' if display_mode == 'Credits' else 'Cost'}",
-            display_value,
-            help="Credits/cost for the SQL query execution"
-        )
+        create_metric("🏭 Warehouse", warehouse_cortex_credits, cost_per_credit, display_mode,
+                     "Credits/cost for the SQL query execution")
     
     with col4:
-        value = cortex_search_credits
-        display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-        st.metric(
-            f"🔍 Cortex Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
-            display_value,
-            help="Credits/cost for search services used by Cortex Agents"
-        )
+        create_metric("🔍 Cortex Search", cortex_search_credits, cost_per_credit, display_mode,
+                     "Credits/cost for search services used by Cortex Agents")
     
     # Warehouse breakdown chart and table - only show warehouses with Cortex Analyst activity
     if not warehouse_data.empty:
@@ -487,61 +507,37 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
                         marker_color='#11567F'
                     ))
                 
-                fig.update_layout(
-                    title=f"Warehouse Usage Breakdown - Last {period_name}",
-                    xaxis_title="Warehouse",
-                    yaxis_title="Credits Used" if display_mode == "Credits" else "Estimated Cost ($)",
-                    barmode='stack',
-                    font_family="Arial"
-                )
+                apply_chart_styling(fig, f"Warehouse Usage Breakdown - Last {period_name}", "Warehouse", "Credits Used", display_mode)
+                fig.update_layout(barmode='stack')
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Detailed breakdown table - one row per warehouse
                 st.markdown("#### 📋 Detailed Warehouse Breakdown")
                 
-                # Create table with one row per warehouse and separate columns
+                # Create warehouse breakdown table
                 table_data = []
                 for warehouse in cortex_warehouses.index:
                     cortex_credits = cortex_warehouses.loc[warehouse, 'Cortex Analyst']
                     other_credits = cortex_warehouses.loc[warehouse, 'Other Queries'] if 'Other Queries' in cortex_warehouses.columns else 0
                     
-                    # Get query counts
-                    cortex_queries_count = warehouse_data[
-                        (warehouse_data['WAREHOUSE_NAME'] == warehouse) & 
-                        (warehouse_data['QUERY_TYPE'] == 'Cortex Analyst')
-                    ]['QUERY_COUNT'].iloc[0] if len(warehouse_data[
-                        (warehouse_data['WAREHOUSE_NAME'] == warehouse) & 
-                        (warehouse_data['QUERY_TYPE'] == 'Cortex Analyst')
-                    ]) > 0 else 0
+                    # Get query counts efficiently
+                    warehouse_rows = warehouse_data[warehouse_data['WAREHOUSE_NAME'] == warehouse]
+                    cortex_queries_count = warehouse_rows[warehouse_rows['QUERY_TYPE'] == 'Cortex Analyst']['QUERY_COUNT'].iloc[0] if len(warehouse_rows[warehouse_rows['QUERY_TYPE'] == 'Cortex Analyst']) > 0 else 0
+                    other_queries_count = warehouse_rows[warehouse_rows['QUERY_TYPE'] == 'Other Queries']['QUERY_COUNT'].iloc[0] if len(warehouse_rows[warehouse_rows['QUERY_TYPE'] == 'Other Queries']) > 0 else 0
                     
-                    other_queries_count = warehouse_data[
-                        (warehouse_data['WAREHOUSE_NAME'] == warehouse) & 
-                        (warehouse_data['QUERY_TYPE'] == 'Other Queries')
-                    ]['QUERY_COUNT'].iloc[0] if len(warehouse_data[
-                        (warehouse_data['WAREHOUSE_NAME'] == warehouse) & 
-                        (warehouse_data['QUERY_TYPE'] == 'Other Queries')
-                    ]) > 0 else 0
-                    
-                    if display_mode == "Credits":
-                        table_data.append({
-                            'WAREHOUSE_NAME': warehouse,
-                            'CORTEX_ANALYST_CREDITS': format_credits(cortex_credits),
-                            'OTHER_CREDITS': format_credits(other_credits),
-                            'CORTEX_ANALYST_QUERIES': cortex_queries_count,
-                            'OTHER_QUERIES': other_queries_count
-                        })
-                    else:
-                        table_data.append({
-                            'WAREHOUSE_NAME': warehouse,
-                            'CORTEX_ANALYST_COST': format_cost(cortex_credits, cost_per_credit),
-                            'OTHER_COST': format_cost(other_credits, cost_per_credit),
-                            'CORTEX_ANALYST_QUERIES': cortex_queries_count,
-                            'OTHER_QUERIES': other_queries_count
-                        })
+                    table_data.append({
+                        'WAREHOUSE_NAME': warehouse,
+                        'CORTEX_ANALYST_CREDITS': cortex_credits,
+                        'OTHER_CREDITS': other_credits,
+                        'CORTEX_ANALYST_QUERIES': cortex_queries_count,
+                        'OTHER_QUERIES': other_queries_count
+                    })
                 
+                # Format table for display
                 table_df = pd.DataFrame(table_data)
-                st.dataframe(table_df, use_container_width=True, hide_index=True)
+                formatted_df = format_dataframe_for_display(table_df, ['CORTEX_ANALYST_CREDITS', 'OTHER_CREDITS'], display_mode, cost_per_credit)
+                st.dataframe(formatted_df, use_container_width=True, hide_index=True)
                 
             else:
                 st.info(f"💡 No Cortex Analyst activity found for the last {period_name}.")
@@ -562,13 +558,8 @@ def render_period_tab(days, period_name, display_mode, cost_per_credit):
             service_summary = agent_search_data.groupby('SERVICE_NAME')['CREDITS'].sum().reset_index()
             service_summary = service_summary.sort_values('CREDITS', ascending=False)
             
-            if display_mode == "Credits":
-                service_summary['CREDITS'] = service_summary['CREDITS'].apply(format_credits)
-            else:
-                service_summary['ESTIMATED_COST'] = service_summary['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
-                service_summary = service_summary.drop('CREDITS', axis=1)
-            
-            st.dataframe(service_summary, use_container_width=True, hide_index=True)
+            formatted_summary = format_dataframe_for_display(service_summary, ['CREDITS'], display_mode, cost_per_credit)
+            st.dataframe(formatted_summary, use_container_width=True, hide_index=True)
     
     # Cortex Analyst usage summary
     if not cortex_usage_data.empty:
@@ -669,30 +660,11 @@ with tab_search:
     
     period_days = st.selectbox("Select Time Period:", [7, 1, 3, 30], index=0, key="search_period")
     
-    # Get search usage data
+    # Get search usage data and agent services
     search_usage_data = get_cortex_search_usage(period_days)
-    agents_data = get_agents()
+    all_agent_search_services, agent_service_mapping = get_agent_search_services()
     
     if not search_usage_data.empty:
-        # Get all agent search services for matching
-        all_agent_search_services = set()
-        agent_service_mapping = {}
-        
-        if not agents_data.empty:
-            columns = list(agents_data.columns)
-            name_col = columns[1] if len(columns) > 1 else columns[0]
-            
-            for _, agent_row in agents_data.iterrows():
-                agent_name = agent_row[name_col]
-                tools_info = get_agent_details(agent_name)
-                
-                for service in tools_info['cortex_search_services']:
-                    service_name = service['search_service']
-                    all_agent_search_services.add(service_name)
-                    if service_name not in agent_service_mapping:
-                        agent_service_mapping[service_name] = []
-                    agent_service_mapping[service_name].append(agent_name)
-        
         # Filter search usage to only show services used by agents
         agent_search_usage = search_usage_data[
             search_usage_data['SERVICE_NAME'].isin(all_agent_search_services)
@@ -702,42 +674,24 @@ with tab_search:
         total_search_credits = agent_search_usage['CREDITS'].sum() if not agent_search_usage.empty else 0
         total_all_search_credits = search_usage_data['CREDITS'].sum()
         
-        # Display metrics
+        # Display metrics using helper function
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            value = total_search_credits
-            display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-            st.metric(
-                f"💰 Agent Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
-                display_value,
-                help="Cortex Search costs for services used by Cortex Agents"
-            )
+            create_metric("💰 Agent Search", total_search_credits, cost_per_credit, display_mode,
+                         "Cortex Search costs for services used by Cortex Agents")
         
         with col2:
-            value = total_all_search_credits
-            display_value = format_credits(value) if display_mode == "Credits" else format_cost(value, cost_per_credit)
-            st.metric(
-                f"🔍 Total Search {'Credits' if display_mode == 'Credits' else 'Cost'}",
-                display_value,
-                help="Total Cortex Search costs (all services)"
-            )
+            create_metric("🔍 Total Search", total_all_search_credits, cost_per_credit, display_mode,
+                         "Total Cortex Search costs (all services)")
         
         with col3:
-            unique_services = len(all_agent_search_services)
-            st.metric(
-                "🤖 Agent Services",
-                str(unique_services),
-                help="Number of Cortex Search services used by agents"
-            )
+            st.metric("🤖 Agent Services", str(len(all_agent_search_services)),
+                     help="Number of Cortex Search services used by agents")
         
         with col4:
-            total_services = search_usage_data['SERVICE_NAME'].nunique()
-            st.metric(
-                "📊 Total Services",
-                str(total_services),
-                help="Total number of Cortex Search services in account"
-            )
+            st.metric("📊 Total Services", str(search_usage_data['SERVICE_NAME'].nunique()),
+                     help="Total number of Cortex Search services in account")
         
         # Show agent-related search services
         if not agent_search_usage.empty:
@@ -759,24 +713,14 @@ with tab_search:
             breakdown_df = pd.DataFrame(service_breakdown)
             breakdown_df = breakdown_df.sort_values('TOTAL_CREDITS', ascending=False)
             
-            # Format for display
-            if display_mode == "Credits":
-                breakdown_df['TOTAL_CREDITS'] = breakdown_df['TOTAL_CREDITS'].apply(format_credits)
-            else:
-                breakdown_df['TOTAL_COST'] = breakdown_df['TOTAL_CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
-                breakdown_df = breakdown_df.drop('TOTAL_CREDITS', axis=1)
-            
-            st.dataframe(breakdown_df, use_container_width=True, hide_index=True)
+            # Format and display table
+            formatted_breakdown = format_dataframe_for_display(breakdown_df, ['TOTAL_CREDITS'], display_mode, cost_per_credit)
+            st.dataframe(formatted_breakdown, use_container_width=True, hide_index=True)
             
             # Show raw data for agent services
             st.markdown("#### 📋 Detailed Usage Data (Agent Services Only)")
-            display_search = agent_search_usage.copy()
-            if display_mode == "Cost":
-                display_search['ESTIMATED_COST'] = display_search['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
-            else:
-                display_search['CREDITS'] = display_search['CREDITS'].apply(format_credits)
-            
-            st.dataframe(display_search, use_container_width=True, hide_index=True)
+            formatted_search = format_dataframe_for_display(agent_search_usage, ['CREDITS'], display_mode, cost_per_credit)
+            st.dataframe(formatted_search, use_container_width=True, hide_index=True)
         
         else:
             # Debug: Show what services we're looking for vs what's available
@@ -821,21 +765,17 @@ with tab5:
         
         with col1:
             total_credits = usage_data['CREDITS'].sum()
-            display_value = format_credits(total_credits) if display_mode == "Credits" else format_cost(total_credits, cost_per_credit)
-            st.metric(f"Total {'Credits' if display_mode == 'Credits' else 'Cost'}", display_value)
+            create_metric("📊 Total", total_credits, cost_per_credit, display_mode)
         
         with col2:
-            total_requests = usage_data['REQUEST_COUNT'].sum()
-            st.metric("Total Requests", f"{total_requests:,}")
+            st.metric("🔢 Total Requests", f"{usage_data['REQUEST_COUNT'].sum():,}")
         
         with col3:
-            unique_users = usage_data['USERNAME'].nunique()
-            st.metric("Unique Users", str(unique_users))
+            st.metric("👥 Unique Users", str(usage_data['USERNAME'].nunique()))
         
         with col4:
-            avg_credits_per_request = total_credits / total_requests if total_requests > 0 else 0
-            display_value = format_credits(avg_credits_per_request) if display_mode == "Credits" else format_cost(avg_credits_per_request, cost_per_credit)
-            st.metric(f"Avg {'Credits' if display_mode == 'Credits' else 'Cost'}/Request", display_value)
+            avg_credits_per_request = total_credits / usage_data['REQUEST_COUNT'].sum() if usage_data['REQUEST_COUNT'].sum() > 0 else 0
+            create_metric("📊 Avg per Request", avg_credits_per_request, cost_per_credit, display_mode)
         
         # Usage over time chart
         st.markdown("#### 📈 Usage Over Time")
@@ -858,22 +798,13 @@ with tab5:
                 title=title,
                 color_discrete_sequence=['#29B5E8']
             )
-            fig.update_layout(
-                xaxis_title="Time",
-                yaxis_title="Credits Used" if display_mode == "Credits" else "Estimated Cost ($)",
-                font_family="Arial"
-            )
+            apply_chart_styling(fig, title, "Time", "Credits Used", display_mode)
             st.plotly_chart(fig, use_container_width=True)
         
         # Detailed usage table
         st.markdown("#### 📋 Detailed Usage History")
-        display_usage = usage_data.copy()
-        if display_mode == "Estimated Cost":
-            display_usage['ESTIMATED_COST'] = display_usage['CREDITS'].apply(lambda x: format_cost(x, cost_per_credit))
-        else:
-            display_usage['CREDITS'] = display_usage['CREDITS'].apply(format_credits)
-        
-        st.dataframe(display_usage, use_container_width=True, hide_index=True)
+        formatted_usage = format_dataframe_for_display(usage_data, ['CREDITS'], display_mode, cost_per_credit)
+        st.dataframe(formatted_usage, use_container_width=True, hide_index=True)
     else:
         st.info(f"💡 No Cortex Analyst usage found for the last {period_days} days.")
 
