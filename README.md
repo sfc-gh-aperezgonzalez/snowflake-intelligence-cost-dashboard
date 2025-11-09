@@ -48,7 +48,7 @@ GRANT SELECT ON VIEW SNOWFLAKE.LOCAL.CORTEX_ANALYST_REQUESTS_V TO ROLE <your_rol
 ## 🚀 Deployment
 
 ### Prerequisites
-- Snowflake account with Streamlit enabled
+- Snowflake account
 - Snowflake CLI installed (optional, for automated deployment)
 - Required permissions (see below)
 
@@ -79,11 +79,9 @@ snow streamlit deploy
 ```
 snowflake-intelligence-cost-dashboard/
 ├── streamlit/
-│   ├── streamlit_app.py      # Main dashboard application
-│   └── environment.yml        # Python dependencies
-├── assets/
-│   └── demo-dashboard.gif     # Demo screenshot
-└── README.md
+    ├── streamlit_app.py      # Main dashboard application
+    └── environment.yml        # Python dependencies
+
 ```
 
 ## ⚠️ Current Limitations
