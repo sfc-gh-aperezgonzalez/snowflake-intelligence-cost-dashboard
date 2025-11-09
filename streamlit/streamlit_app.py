@@ -734,7 +734,7 @@ with tab_search:
             st.dataframe(formatted_breakdown, use_container_width=True, hide_index=True)
             
             # Show raw data for agent services
-            st.markdown("#### 📋 Detailed Usage Data (Agent Services Only)")
+            st.markdown("#### 📋 Detailed Usage Data")
             formatted_search = format_dataframe_for_display(agent_search_usage, ['CREDITS'], display_mode, cost_per_credit)
             st.dataframe(formatted_search, use_container_width=True, hide_index=True)
         
