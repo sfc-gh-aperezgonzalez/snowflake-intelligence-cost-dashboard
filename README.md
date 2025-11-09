@@ -52,6 +52,8 @@ GRANT SELECT ON VIEW SNOWFLAKE.LOCAL.CORTEX_ANALYST_REQUESTS_V TO ROLE <your_rol
 - Snowflake CLI installed (optional, for automated deployment)
 - Required permissions (see below)
 
+**Note:** The Streamlit app can be deployed to any database and schema of your preference. It does not require a specific database or schema location.
+
 ### Deployment Options
 
 #### Option 1: Using Snowflake CLI (Recommended)
