@@ -47,14 +47,43 @@ GRANT SELECT ON VIEW SNOWFLAKE.LOCAL.CORTEX_ANALYST_REQUESTS_V TO ROLE <your_rol
 
 ## 🚀 Deployment
 
-### Simple Deployment
-1. Create a new Streamlit app in any Snowflake database
-2. Copy the `cortex_agents_costs_dashboard.py` file
+### Prerequisites
+- Snowflake account with Streamlit enabled
+- Snowflake CLI installed (optional, for automated deployment)
+- Required permissions (see below)
 
-### Using Snowflake CLI
+### Deployment Options
+
+#### Option 1: Using Snowflake CLI (Recommended)
 ```bash
-# Deploy to Snowflake (if you have snow CLI configured)
-snow streamlit deploy --file cortex_agents_costs_dashboard.py
+# Navigate to the project directory
+cd snowflake-intelligence-cost-dashboard
+
+# Deploy the Streamlit app
+snow streamlit deploy
+
+# The deployment will use the streamlit/ folder structure:
+# - streamlit/streamlit_app.py (main app)
+# - streamlit/environment.yml (dependencies)
+```
+
+#### Option 2: Manual Deployment in Snowflake UI
+1. In Snowflake UI, navigate to **Streamlit** section
+2. Create a new **Streamlit app**
+3. Upload the contents from the `streamlit/` folder:
+   - Main app file: `streamlit_app.py`
+   - Dependencies: `environment.yml`
+4. The app will automatically install required dependencies (plotly) from the environment file
+
+### Project Structure
+```
+snowflake-intelligence-cost-dashboard/
+├── streamlit/
+│   ├── streamlit_app.py      # Main dashboard application
+│   └── environment.yml        # Python dependencies
+├── assets/
+│   └── demo-dashboard.gif     # Demo screenshot
+└── README.md
 ```
 
 ## ⚠️ Current Limitations
