@@ -1,8 +1,8 @@
-# 🤖 Snowflake Intelligence Cost Dashboard
+# 💰 Snowflake Intelligence Cost Dashboard
 
 A comprehensive Streamlit dashboard for monitoring and analyzing costs associated with Cortex Agents and Snowflake Intelligence in your Snowflake account.
 
-![Demo](assets/1.gif)
+![Demo](assets/demo-dashboard.gif)
 
 ## 📊 What This Dashboard Does
 
