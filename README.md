@@ -10,11 +10,17 @@ This dashboard provides comprehensive cost monitoring for all Cortex Agents in y
 
 ### ⚠️ Important: Orchestration & Reasoning Costs
 
-In early November 2024, Snowflake announced new cost components for Cortex Agents:
-- **Orchestration costs** - Credits for agent workflow coordination and tool calling
-- **Reasoning costs** - Credits for agent decision-making and planning
+Total costs for Snowflake Intelligence is derived from four main components in a pure consumption-based model:
+    
+1. **🧠 Orchestration/Reasoning** - Credits for agent workflow coordination, tool calling, decision-making and planning (# credits per 1M input/output tokens)
+    
+2. **🎯 Cortex Analyst** - Text-to-SQL service with semantic layer for models or views (# credits per 1M input/output tokens)
+    
+3. **🔍 Cortex Search** - Indexing for semantic and lexical search (credits per GB of index per month)
+    
+4. **🏭 Warehouse compute** - Standard Snowflake warehouse charges when executing queries
 
-These costs are **not yet available** in ACCOUNT_USAGE views. This dashboard will be updated once Snowflake releases the Cortex Agents Usage Views.
+Costs for orchestration/reasoning are **not yet available** in ACCOUNT_USAGE views. This dashboard will be updated once Snowflake releases the Cortex Agents Usage Views.
 
 For current pricing information, see the [Snowflake Consumption Table](https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf).
 

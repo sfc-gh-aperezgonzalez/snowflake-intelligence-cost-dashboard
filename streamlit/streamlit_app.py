@@ -422,7 +422,7 @@ with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=
     
     **⚠️ Coming Soon: Orchestration & Reasoning Costs**
     
-    In early November 2024, Snowflake announced new cost components for Cortex Agents:
+    In early November 2025, Snowflake announced new cost components for Cortex Agents:
     - **Orchestration costs** - Credits for agent workflow coordination and tool calling
     - **Reasoning costs** - Credits for agent decision-making and planning
     
