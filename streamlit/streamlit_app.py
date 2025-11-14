@@ -398,27 +398,22 @@ with st.sidebar.expander("💡 Cost Estimation Details", expanded=False):
 # Main content area
 st.subheader("💰 Snowflake Intelligence Cost Analysis")
 
-# Important notice about upcoming cost components
-st.warning("""
-⚠️ **Important Update:** Costs for **orchestration and reasoning** in Snowflake Intelligence were announced in early November 2024. 
-This dashboard will be updated as soon as **Cortex Agents Usage Views** are released by Snowflake. 
-Meanwhile, orchestration costs can be found in the [Snowflake Consumption Table](https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf).
-""")
-
 # Expandable info section
 with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=False):
     st.markdown("""
-    **Total costs for Snowflake Intelligence is derived from three main components in a pure consumption-based model:**
+    **Total costs for Snowflake Intelligence is derived from four main components in a pure consumption-based model:**
     
-    1. **🎯 Token usage** - charged per million tokens for both input tokens (context and data the agent processes) and output tokens (the agent's responses, queries, and SQL statements)
+    1. **🧠 Orchestration/Reasoning** - Credits for agent workflow coordination, tool calling, decision-making and planning (# credits per 1M input/output tokens)
     
-    2. **🔍 Cortex Search costs** - consumption charges based on the size of knowledge base indexes when the agent accesses internal company data
+    2. **🎯 Cortex Analyst** - Text-to-SQL service with semantic layer for models or views (# credits per 1M input/output tokens)
     
-    3. **🏭 Warehouse compute costs** - standard Snowflake warehouse charges when the agent executes queries to answer questions
+    3. **🔍 Cortex Search** - Indexing for semantic and lexical search (credits per GB of index per month)
+    
+    4. **🏭 Warehouse compute** - Standard Snowflake warehouse charges when executing queries
     
     ---
     
-    **📊 This dashboard currently covers these components:**
+    **📊 This dashboard currently covers 3/4 of these components:**
     - **Cortex Analyst Usage**: Token consumption for text-to-SQL generation
     - **Cortex Search Costs**: Consumption for knowledge base services used by agents
     - **Warehouse Costs**: Compute costs for executing generated queries

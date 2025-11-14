@@ -8,6 +8,16 @@ A comprehensive Streamlit dashboard for monitoring and analyzing costs associate
 
 This dashboard provides comprehensive cost monitoring for all Cortex Agents in your Snowflake account, tracking Cortex Analyst text-to-SQL generation costs, warehouse compute costs for AI-generated query execution, and Cortex Search costs for knowledge base services across multiple time periods (1d, 3d, 7d, 30d). The dashboard shows total consumption with detailed breakdowns by warehouse usage, agent configurations, search service mapping, usage trends over time, and raw request data, while automatically detecting your Snowflake edition to provide both credit consumption and estimated dollar cost views.
 
+### ⚠️ Important: Orchestration & Reasoning Costs
+
+In early November 2024, Snowflake announced new cost components for Cortex Agents:
+- **Orchestration costs** - Credits for agent workflow coordination and tool calling
+- **Reasoning costs** - Credits for agent decision-making and planning
+
+These costs are **not yet available** in ACCOUNT_USAGE views. This dashboard will be updated once Snowflake releases the Cortex Agents Usage Views.
+
+For current pricing information, see the [Snowflake Consumption Table](https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf).
+
 ## 🔍 Data Sources
 
 The dashboard queries the following Snowflake views and tables:
