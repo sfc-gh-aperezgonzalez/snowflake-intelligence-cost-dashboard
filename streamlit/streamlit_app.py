@@ -398,6 +398,13 @@ with st.sidebar.expander("💡 Cost Estimation Details", expanded=False):
 # Main content area
 st.subheader("💰 Snowflake Intelligence Cost Analysis")
 
+# Important notice about upcoming cost components
+st.warning("""
+⚠️ **Important Update:** Costs for **orchestration and reasoning** in Snowflake Intelligence were announced in early November 2024. 
+This dashboard will be updated as soon as **Cortex Agents Usage Views** are released by Snowflake. 
+Meanwhile, orchestration costs can be found in the [Snowflake Consumption Table](https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf).
+""")
+
 # Expandable info section
 with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=False):
     st.markdown("""
@@ -411,10 +418,23 @@ with st.expander("📚 Learn more about Snowflake Intelligence costs", expanded=
     
     ---
     
-    **📊 This dashboard covers all 3 components:**
+    **📊 This dashboard currently covers these components:**
     - **Cortex Analyst Usage**: Token consumption for text-to-SQL generation
     - **Cortex Search Costs**: Consumption for knowledge base services used by agents
     - **Warehouse Costs**: Compute costs for executing generated queries
+    
+    ---
+    
+    **⚠️ Coming Soon: Orchestration & Reasoning Costs**
+    
+    In early November 2024, Snowflake announced new cost components for Cortex Agents:
+    - **Orchestration costs** - Credits for agent workflow coordination and tool calling
+    - **Reasoning costs** - Credits for agent decision-making and planning
+    
+    These costs are **not yet available** in ACCOUNT_USAGE views. This dashboard will be updated 
+    once Snowflake releases the Cortex Agents Usage Views.
+    
+    For current pricing information, see the [Snowflake Consumption Table](https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf).
     """)
 
 # Create tabs for different time periods and data views
